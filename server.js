@@ -59,4 +59,41 @@ app.get('/', (req, res) => {res.send('Hello World!')});
 app.listen(port, () => {
     console.log('Express is running on port 3000');
 });
- 
+app.get('/tasks', (req, res) => {
+    const query = "SELECT * FROM tasks;";
+
+    db.query(query, (err, results) => {
+        if (err) {
+            console.log("oh no we did bad");
+            console.log(err);
+            res.status(500).json({error: 'Error getting tasks.'})
+        }
+        else {
+            res.json(results);
+        }
+    })
+})
+
+// new route to add a task to the database
+app.post('/tasks', (req, res) => {
+
+    const params = [req.body['title'], req.body['description'], req.body['is_completed']];
+    console.log(req.body)
+    const query = "INSERT INTO tasks (title, description, is_completed) VALUES (?, ?, ?);"
+
+    db.query(query, params, (err, results) => {
+        if (err) {
+            console.log("oh no we did bad");
+            console.log(err);
+            res.status(500).json({error: 'Error adding task to database.'})
+        }
+        else {
+            res.status(200).json(results);
+        }
+    })
+})
+
+// starts the app
+app.listen(port, () => {
+    console.log(`Example app listening on port ${port}`)
+})
