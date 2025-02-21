@@ -138,4 +138,3 @@ app.listen(process.env.PORT, () => {
     console.log("server on 3000");
    
 })
-has context menu
