@@ -1,140 +1,130 @@
+
+
 import express from 'express';
 import cors from 'cors';
 import mysql from 'mysql2';
+import bodyParser from 'body-parser';
 import 'dotenv/config';
  
-const host = process.env.HOST
-const password =  process.env.PASSWORD
-const dbPort = process.env.DB_PORT
-const database = process.env.DATABASE
+const app = express(); // this calls the express function
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
  
-const app = express();
- 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
- 
- 
-app.use(cors({ origin: 'http://localhost:5173' }));
+const port = process.env.PORT;  // Use the correct environment variable name
  
 const db = mysql.createConnection({
-    host: "",
-    user: "",
-    port: "",
-    password:  "",
-    database: "",
+    host: 'thresholds-test.mysql.database.azure.com',
+    user: process.env.PF, // Replace with your MySQL username
+    port: process.env.DB_Port, // Replace with the port you need - may be different from mine
+    password: process.env.PASSWORD, // Replace with your MySQL password
+    database: process.env.DATABASE, // Replace with your database name
 });
  
 db.connect((err) => {
     if (err) {
-        console.log("Error connecting DB", err);
-    }else {
-       console.log("Connected to DB")
+        console.error('Error connecting to the database:', err);
+        return;
     }
+    console.log('Connected to the database');
+});
  
-   
  
-})
+// //every query needs a db.connect function to
+// //run it and send request to client
+// //query is the client talking to API to sumit a request
+// //db.connect is the response
+// //after every query and db use postman to test API
+// //creating new tasks
+// //reading one or several tasks
+// //modify a task - change title, descrip. or status
+// //delete a task
  
  
 app.get('/tasks', (req, res) => {
-    const query = "SELECT * FROM tasks;";
- 
+    const query = 'SELECT * FROM tasks';
     db.query(query, (err, results) => {
-        if(err){
-            console.log(err);
-            res.status(500).json({error: 'Error getting tasks'})
-        }else {
+        if (err) {
+            console.error('could not PULL UP!:', err);
+            console.log('You did something wrong with the tasks');
+            res.status(500).json({ error: 'Error retrieving tasks' });
+        } else {
+            console.log(results[0]);
             res.json(results);
         }
-    })
+    });
 });
  
-app.post('/addTask', (req, res) => {
-    console.log("Received request body:", req.body); // Debugging
  
-  const { title } = req.body;
+//create task
+app.post('/tasks', (req, res) => {
+    const parmas = [req.body['title'], req.body['description'], req.body['is_completed']];
+    const query = 'INSERT INTO tasks (title, description, is_completed) VALUES(?, ?, ?);'
+    db.query(query, parmas, (err, results) => {
+        if (err) {
+            console.error('could not insert the task:', err);
+            console.log('could not add the task');
+            res.status(500).json({ error: 'Error inserting task' });
+        } else {
+            console.log(results);
+            res.json({ message: 'Task inserted successfully' });
+            res.status(200);
+        }
+    });
  
-    const params = [req.body['title'], req.body['description'], req.body['is_completed']];
-    console.log(req.body);
-   
+})
  
-    const query = "INSERT INTO tasks (title, description, is_completed) VALUES(?, ?, ?)";
+//modifies
+app.put('/tasks/:id', (req, res) => {
+    const taskId = parseInt(req.params.id, 10); // Ensure ID is an integer
+    const { title, description, is_completed } = req.body;
+ 
+    // Debugging: Log the ID and received data
+    console.log("Updating task with ID:", taskId);
+    console.log("Received data:", req.body);
+ 
+    // Validate input
+    if (!title || !description || is_completed === undefined) {
+        return res.status(400).json({ error: 'All fields (title, description, is_completed) are required' });
+    }
+ 
+    const query = 'UPDATE tasks SET title = ?, description = ?, is_completed = ? WHERE id = ?';
+    const params = [title, description, is_completed, taskId];
  
     db.query(query, params, (err, results) => {
         if (err) {
-            console.log("adkhfaka",err);
-            res.status(500).json({error: 'Error adding to DB'})
-        } else {
-            res.status(200).json(results)
+            console.error('Error updating task:', err);
+            return res.status(500).json({ error: 'Error updating task' });
         }
-    })
-})
  
-app.put('/updateTask/:id', (req, res) => {
-    const taskId = req.params.id;
+        console.log("MySQL Results:", results); // Debugging line
  
-    const { title, description, is_completed } = req.body;
+        if (results.affectedRows === 0) {
+            return res.status(404).json({ error: 'Task not found' });
+        }
  
-    let query = "UPDATE tasks SET ";
+        res.json({ message: 'Task updated successfully' });
+    });
+});
  
-    let values = [];
+// DELETE single
+app.delete('/delete/:id', (req, res) => {
+    const taskId = req.params.id; // Get ID from URL parameter
  
-    if (title) {
-        query += "title = ?, ";
-        values.push(title);
-    }
+    const query = "DELETE FROM tasks WHERE id = ?";
  
-    if (description) {
-        query += "description = ?, ";
-        values.push(description);
-      }
- 
-      if (is_completed !== undefined) {
-        query += "is_completed = ?, ";
-        values.push(is_completed);
-      }
- 
-      query = query.slice(0, -2); // Remove last comma
-  query += " WHERE id = ?";
-  values.push(taskId);
- 
-  db.query(query, values, (err, result) => {
-    if (err) {
-      console.error("Database error:", err);
-      return res.status(500).json({ error: "Database error" });
-    }
- 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Task not found" });
-    }
- 
-    res.json({ message: "Task updated successfully" });
-})
-})
- 
-app.delete('/deleteTask/:id', (req, res) => {
-    const taskId = req.params.id;
-    console.log(taskId);
-   
- 
-    const query = "DELETE FROM tasks WHERE id=?";
- 
-    db.query(query, [taskId], (err, result) => {
+    db.query(query, [taskId], (err, results) => {
         if (err) {
-            console.log("DB error", err);
-            return res.status(500).json({ error: "Database error" });
+            console.error("Error deleting task:", err);
+            return res.status(500).json({ error: "Error deleting task." });
         }
- 
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: "Task not found" });
-          }
- 
-          res.json({message: "Deleted Successfully"})
-    })
-})
+        res.status(200).json({ message: "Task deleted successfully." });
+    });
+});
  
  
-app.listen(process.env.PORT, () => {
-    console.log("server on 3000");
-   
-})
+ 
+ 
+app.listen(port, () => {
+    console.log('Server is running on port', port);
+});
+ 
